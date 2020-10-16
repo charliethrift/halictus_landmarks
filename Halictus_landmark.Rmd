@@ -104,7 +104,10 @@ str(all_data.pca)
 ## Plotting the Data
 ```{r}
 ##run PCA with ALL EXCEPT UNIDENTIFIED data
-all_no_unid_CSVdata <- read.csv("halictus_coord_no_unid_data.csv")
+all_no_unid_CSVdata <- subset(all_CSVdata, species == "tripartitus" |
+                              species == "ligatus" | 
+                              species == "rubicundus" |
+                              species == "farinosus") 
 all_no_unid_data.pca <- prcomp(all_no_unid_CSVdata[,c(6:23)], 
                                center = TRUE, scale. = TRUE)
 
