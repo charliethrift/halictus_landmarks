@@ -1,0 +1,139 @@
+---
+title: "Halictus_landmark"
+author: "Charlie Thrift"
+date: "10/15/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Intro
+```{r}
+#R markdown document for data analysis for poster presentation of 
+# Applying Geometric Morphometrics to Identify Bee Species in Genus Halictus 
+# (Hymenoptera: Halictidae) and Quantify Island-Mainland Variation Within Species
+
+```
+
+## Load Packages
+```{r}
+library(stats)
+library(geomorph)
+library(devtools)
+library(ggbiplot)
+```
+
+## Read Data
+```{r}
+#Read the TPS data for each species
+
+#1 of 5: tripartitus
+tri_data <- readland.tps("tripartitus_7oct2020.tps", specID = c("imageID"), 
+                     readcurves = FALSE, warnmsg = TRUE,
+                     negNA = TRUE) 
+#!!!should omit the ones with negative values instead as Chris recommends!!!
+tri_data <- estimate.missing(tri_data, method = c("TPS", "Reg")) #for now, won't run unless do this though
+
+#2 of 5: rubicundus
+rub_data <- readland.tps("rubicundus_7oct2020.tps", specID = c("imageID"), 
+                     readcurves = FALSE, warnmsg = TRUE,
+                     negNA = TRUE)
+
+#3 of 5: farinsosus
+far_data <- readland.tps("farinosus_7oct2020.tps", specID = c("imageID"), 
+                     readcurves = FALSE, warnmsg = TRUE,
+                     negNA = TRUE)
+
+#4 of 5: ligatus
+lig_data <- readland.tps("ligatus_7oct2020.tps", specID = c("imageID"), 
+                     readcurves = FALSE, warnmsg = TRUE,
+                     negNA = TRUE)
+
+#5 of 5: unidentified
+unident_data <- readland.tps("unidentified_7oct2020.tps", specID = c("imageID"), 
+                     readcurves = FALSE, warnmsg = TRUE,
+                     negNA = TRUE)
+unident_data <- estimate.missing(unident_data, method = c("TPS", "Reg"))
+```
+
+## Run Generalized Procrustes Analyses
+```{r}
+#run GPA on TPS data
+tri_data_gpa <- gpagen(tri_data, PrinAxes = FALSE)
+rub_data_gpa <- gpagen(rub_data, PrinAxes = FALSE)
+lig_data_gpa <- gpagen(lig_data, PrinAxes = FALSE)
+far_data_gpa <- gpagen(far_data, PrinAxes = FALSE)
+unident_data_gpa <- gpagen(unident_data, PrinAxes = FALSE)
+
+#plot all 5 groups into 2D space
+plot(tri_data_gpa)
+plot(rub_data_gpa)
+plot(lig_data_gpa)
+plot(far_data_gpa)
+plot(unident_data_gpa)
+```
+
+## Write CSV files with Coordinate Data (from GPA)
+```{r}
+#to write the procrustes data into a new CSV
+write.csv(tri_data_gpa$data, "bee_tri_lm_15oct2020.csv", row.names = TRUE)
+write.csv(rub_data_gpa$data, "bee_rub_lm_15oct2020.csv", row.names = TRUE)
+write.csv(far_data_gpa$data, "bee_far_lm_15oct2020.csv", row.names = TRUE)
+write.csv(lig_data_gpa$data, "bee_lig_lm_15oct2020.csv", row.names = TRUE)
+write.csv(unident_data_gpa$data, "bee_unident_lm_15oct2020.csv", row.names = TRUE)
+
+#read in the procrustes data for all groups combined
+##note: this spreadsheet was created outside of R, in Excel, by compiling the 
+##5 csv files from above, then comparing to CCBER gbif Halictus data to add columns
+##for location, and sex, based on the specimen's catalog number
+all_CSVdata <- read.csv("halictus_coord_data.csv")
+```
+
+## Run Pricipal Component Analysis
+```{r}
+##run PCA with all Halictus data
+all_data.pca <- prcomp(all_CSVdata[,c(6:23)], center = TRUE, scale. = TRUE)
+#check summary of PCA
+summary(all_data.pca)
+#check structure of PCA
+str(all_data.pca)
+```
+
+## Plotting the Data
+```{r}
+##run PCA with ALL EXCEPT UNIDENTIFIED data
+all_no_unid_CSVdata <- read.csv("halictus_coord_no_unid_data.csv")
+all_no_unid_data.pca <- prcomp(all_no_unid_CSVdata[,c(6:23)], 
+                               center = TRUE, scale. = TRUE)
+
+##all 4 species together (no unidentified)
+ggbiplot(all_no_unid_data.pca,
+  ellipse=TRUE,  
+  labels=rownames(all_no_unid_CSVdata$species), 
+  var.axes = FALSE, 
+  alpha = 0.75,
+  groups=all_no_unid_CSVdata$species)+
+  ggtitle("Halictus bees pca (by species)")+ 
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+  scale_colour_manual(name="species", values= c("midnightblue", "goldenrod",
+                                                "olivedrab", "cornflowerblue"))
+
+##island mainland variation for H. tripartitus
+all_tri_data <- subset(all_CSVdata, species == "tripartitus") #subset for tri
+all_tri.pca <- prcomp(all_tri_data[,c(6:23)], center = TRUE, scale. = TRUE) #pca for tri
+
+ggbiplot(all_tri.pca,
+  ellipse=TRUE,  
+  labels=rownames(all_tri_data$location), 
+  alpha = 0.75,
+  var.axes = FALSE,
+  groups=all_tri_data$location)+
+  ggtitle("PCA of tripartitus (by location)")+ 
+  theme_minimal()+ 
+  theme(legend.position = "bottom")+
+  scale_colour_manual(name="location", values= c("tan3", "cornflowerblue"))
+```
+
