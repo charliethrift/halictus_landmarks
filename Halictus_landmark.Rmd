@@ -140,3 +140,23 @@ ggbiplot(all_tri.pca,
   scale_colour_manual(name="location", values= c("tan3", "cornflowerblue"))
 ```
 
+## Extracting Eigenvalues, # of Components Explaining Data Variability
+```{r}
+###first, for the ggbiplot with all species
+#to get eigenvalues
+pc <- all_no_unid_data.pca
+ev <- pc$sdev^2
+ev #note, there are 5 with values greater than 1
+
+#how many components should we use to explain data variability
+summary(all_no_unid_data.pca)
+
+###second, for the ggbiplot with island/mainland H. tripartitus
+#to get eigenvalues
+pc1 <- all_tri.pca
+ev1 <- pc1$sdev^2
+ev1 #note, there are 5 with values greater than 1
+
+#how many components should we use to explain data variability
+summary(all_tri.pca)
+```
