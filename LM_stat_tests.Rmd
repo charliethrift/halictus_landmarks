@@ -1,0 +1,256 @@
+---
+title: "LM_stat_tests"
+author: "Charlie Thrift"
+date: "12/31/2020"
+output: html_document
+---
+
+# Testing with fewer number of _H. tripartitus_ specimens
+
+## Basic starting materials
+
+### Load Packages
+Here, I load the packages that will be used later in this Rmd file.
+```{r packages, warning=FALSE, echo=FALSE, message=FALSE}
+library(stats)
+library(geomorph)
+library(devtools)
+library(ggbiplot)
+library(ape)
+library(HDMD)
+```
+
+### Read Data
+Here, I read in the data that is used in this file. This is the wing venation coordinate data, which was created after a generalized procrustes analysis (GPA) was run, and it was annoated in Excel to add columns for location and species.
+
+Also, in this section I drop all of the unidentified specimens and a large portion of _Halictus tripartitus_ specimens. One of the questions we had was whether or not having one species so vastly overrepresented would skew the data. Here, there are equal numbers of _H. tripartitus_ and _H. ligatus_, with 37 specimens each. There are only 5 _H. farinosus_ and 4 _H. rubicundus_. A future question could be to run these analyses with only four of each specimen.
+```{r}
+#read in the procrustes data for all groups combined
+##note: this spreadsheet was created outside of R, in Excel, by compiling the 
+##5 csv files from above, then comparing to CCBER gbif Halictus data to add columns
+##for location, and sex, based on the specimen's catalog number
+all_CSVdata <- read.csv("../../../../charliethrift/my_project/halictus_coord_data.csv")
+data31dec <- all_CSVdata #assign the data to a new variable
+
+#manipulate the data
+##drop some of the tripartitus specimens
+data31dec <- data31dec[c(1:83), c(1:24)] #drop all unidentified and some tripartitus
+plot(data31dec$species, main="Number of specimens for each species") #visualize the numbers of each species
+```
+
+### PCA and Plotting Biplots
+Here, I run a principal component analysis (PCA) with the coordinate data. Next, I find the Eigenvalues, and summarize the PCA to show the proportion of explained variance for each principal component. In this case, there are four Eigenvalues greater than 1.
+
+Then, I visualize the resulting PCA with multiple different biplots. These show the distributions of the four species across various axes, with _1 and 2_, _2 and 3_, and _1 and 3_. Axes titles are on each biplot, along with their relative percentage of explained variation.
+```{r}
+data31dec.pca <- prcomp(data31dec[,c(6:23)], center = TRUE, scale. = TRUE) #run pca
+
+#How many eigenvalues are greater than 1?
+pc31 <- data31dec.pca #reassign pca output to variable
+ev31 <- pc31$sdev^2 #square the standard deviaion column
+ev31 #print the output. These are the eigenvalues
+summary(data31dec.pca) #summary of the PCA output. This shows each component and it's proportion of explained variance
+
+ggbiplot(data31dec.pca,
+  ellipse=TRUE,  
+  labels=rownames(data31dec$species), 
+  var.axes = FALSE, 
+  alpha = 0.75,
+  groups=data31dec$species)+
+  ggtitle("Halictus bees pca (by species)")+ 
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+  scale_colour_manual(name="species", values= c("midnightblue", "goldenrod",
+                                                "olivedrab", "cornflowerblue")) 
+ggbiplot(data31dec.pca,
+  ellipse=TRUE,  
+  choices = 2:3, #AXES 2 and 3
+  labels=rownames(data31dec$species), 
+  var.axes = FALSE, 
+  alpha = 0.75,
+  groups=data31dec$species)+
+  ggtitle("Halictus bees pca (by species)")+ 
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+  scale_colour_manual(name="species", values= c("midnightblue", "goldenrod",
+                                                "olivedrab", "cornflowerblue"))
+ggbiplot(data31dec.pca,
+  ellipse=TRUE,  
+  choices = c(1,3), #AXES 1 and 3
+  labels=rownames(data31dec$species), 
+  var.axes = FALSE, 
+  alpha = 0.75,
+  groups=data31dec$species)+
+  ggtitle("Halictus bees pca (by species)")+ 
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+  scale_colour_manual(name="species", values= c("midnightblue", "goldenrod",
+                                                "olivedrab", "cornflowerblue"))
+
+
+```
+
+### Calculating the Mahalanobis Distance
+The Mahalanobis Distance is the distance between centroids of different groups. Here, it is being used to quantify the distance between the centroids of each species, and attempt to demonstrate that each group (species) is significantly different.
+
+#### Calculating Mahalanobis Distance for individual species
+In this first chunk of code, I calculate the Mahalanobis distances of each species individually. This can be useful in finding outliers.
+```{r}
+
+##in this first section, calculate Mahalanobis distances for just H. tripartitus
+
+data_tri <- subset(data31dec, species == "tripartitus") #subset for one species
+df_tri <- data.frame("1x" = c(data_tri$coords.1.X),
+                 "1y" = c(data_tri$coords.1.Y),
+                 "2x" = c(data_tri$coords.2.X),
+                 "2y" = c(data_tri$coords.2.Y),
+                 "3x" = c(data_tri$coords.3.X),
+                 "3y" = c(data_tri$coords.3.Y),
+                 "4x" = c(data_tri$coords.4.X),
+                 "4y" = c(data_tri$coords.4.Y))
+mahalanobis(df_tri, colMeans(df_tri), cov(df_tri))
+D2_tri <- mahalanobis(df_tri, colMeans(df_tri), cov(df_tri))
+df_tri$mahal <- mahalanobis(df_tri, colMeans(df_tri), cov(df_tri))
+df_tri$p <- pchisq(df_tri$mahal, df=3, lower.tail=FALSE)
+df_tri
+plot(df_tri$mahal)
+plot(density(D2_tri, bw = 0.5),
+     main="Squared Mahalanobis distances (H. tripartitus), n=100, p=3") ; rug(D2_tri)
+qqplot(qchisq(ppoints(100), df = 3), D2_tri,
+       main = expression("Q-Q plot of Mahalanobis" * ~D^2 *
+                         " vs. quantiles of" * ~ chi[3]^2))
+abline(0, 1, col = 'gray')
+
+#Now, calculating the Mahalanobis distance for H. ligatus
+ligatus <- subset(data31dec, species == "ligatus")
+ligatus_m <- data.frame("1x" = c(ligatus$coords.1.X),
+                 "1y" = c(ligatus$coords.1.Y),
+                 "2x" = c(ligatus$coords.2.X),
+                 "2y" = c(ligatus$coords.2.Y),
+                 "3x" = c(ligatus$coords.3.X),
+                 "3y" = c(ligatus$coords.3.Y),
+                 "4x" = c(ligatus$coords.4.X),
+                 "4y" = c(ligatus$coords.4.Y),
+                 "5x" = c(ligatus$coords.5.X),
+                 "5y" = c(ligatus$coords.5.Y))
+lig_D2 <- mahalanobis(ligatus_m, colMeans(ligatus_m), cov(ligatus_m))
+plot(density(lig_D2, bw = 0.5),
+     main="Squared Mahalanobis distances (H. ligatus), n=100, p=3") ; rug(lig_D2)
+qqplot(qchisq(ppoints(100), df = 3), lig_D2,
+       main = expression("Q-Q plot of Mahalanobis" * ~D^2 *
+                         " vs. quantiles of" * ~ chi[3]^2))
+abline(0, 1, col = 'gray')
+lig_D2
+
+#Now, trying with rubicundus
+rubicundus <- subset(data31dec, species == "rubicundus")
+rubicundus_m <- data.frame("1x" = c(rubicundus$coords.1.X),
+                 "1y" = c(rubicundus$coords.1.Y),
+                 "2x" = c(rubicundus$coords.2.X)) #note: can not calculate the Mahalobis distance if there are more factors than records. Here: 4 specimens, so 3 factors(coordinates)
+Sx <- cov(rubicundus_m)
+rub_D2 <- mahalanobis(rubicundus_m, colMeans(rubicundus_m), Sx)
+plot(density(rub_D2, bw = 0.5),
+     main="Squared Mahalanobis distances (H. rubicundus), n=100, p=3") ; rug(rub_D2)
+qqplot(qchisq(ppoints(100), df = 3), rub_D2,
+       main = expression("Q-Q plot of Mahalanobis" * ~D^2 *
+                         " vs. quantiles of" * ~ chi[3]^2))
+abline(0, 1, col = 'gray')
+rub_D2
+```
+#### Calculating Mahalanobis Distances across species
+Here, I calculate and compare Mahalanobis Distances across the four species. First, a new matrix is made with only 3 of the 18 coordinate columns from the GPA output. Only 3 can be used because a mahalanobis test can only be run with $n-1$ predictors, when $n$ is the number of specimens per group. When groups are species, and there are only 4 _H. rubicundus_ specimens, there can only be 3 predictors.
+```{r}
+#generating mahalanobis distances with GPA output
+df <- data.frame("1x" = c(data31dec$coords.1.X),
+                 "1y" = c(data31dec$coords.1.Y),
+                 "2x" = c(data31dec$coords.2.X))
+D2 <- mahalanobis(df, colMeans(df), cov(df))
+df$mahal <- mahalanobis(df, colMeans(df), cov(df))
+df$p <- pchisq(df$mahal, df=3, lower.tail=FALSE)
+df
+plot(df$mahal)
+plot(density(D2, bw = 0.5),
+     main="Squared Mahalanobis distances, n=100, p=3") ; rug(D2)
+qqplot(qchisq(ppoints(100), df = 3), D2,
+       main = expression("Q-Q plot of Mahalanobis" * ~D^2 *
+                         " vs. quantiles of" * ~ chi[3]^2))
+abline(0, 1, col = 'gray')
+
+groups1 <- data31dec$species
+
+#pairwise mahalanobis for all four species, with just the three coordinates of data
+Mahala1 <- pairwise.mahalanobis(df, groups1, digits = 3)
+D1 <- sqrt(Mahala1$distance)
+m1 <- D1
+rownames(m1) <- list("farinosus", "ligatus", "rubicundus", "tripartitus")
+colnames(m1) <- list("farinosus", "ligatus", "rubicundus", "tripartitus")
+m1
+
+#Now, pairwise with just tripartitus and ligatus since they have enough specimens to use all 18 coordinates
+data_trip_lig <- subset(data31dec, species == "tripartitus"
+                        | species == "ligatus")
+groups_trip_lig <- data_trip_lig$species
+df_trip_lig <- data.frame("1x" = c(data_trip_lig$coords.1.X),
+                 "1y" = c(data_trip_lig$coords.1.Y),
+                 "2x" = c(data_trip_lig$coords.2.X),
+                 "2y" = c(data_trip_lig$coords.2.Y),
+                 "3x" = c(data_trip_lig$coords.3.X),
+                 "3y" = c(data_trip_lig$coords.3.Y),
+                 "4x" = c(data_trip_lig$coords.4.X),
+                 "4y" = c(data_trip_lig$coords.4.Y),
+                 "5x" = c(data_trip_lig$coords.5.X),
+                 "5y" = c(data_trip_lig$coords.5.Y),
+                 "6x" = c(data_trip_lig$coords.6.X),
+                 "6y" = c(data_trip_lig$coords.6.Y),
+                 "7x" = c(data_trip_lig$coords.7.X),
+                 "7y" = c(data_trip_lig$coords.7.Y),
+                 "8x" = c(data_trip_lig$coords.8.X),
+                 "8y" = c(data_trip_lig$coords.8.Y))
+Mahala_trip_lig <- pairwise.mahalanobis(df_trip_lig, groups_trip_lig, digits = 3)
+D_trip_lig <- sqrt(Mahala_trip_lig$distance)
+rownames(D_trip_lig) <- list("ligatus", "tripartitus")
+colnames(D_trip_lig) <- list("ligatus", "tripartitus")
+D_trip_lig 
+```
+##### New method of calculating Mahalanobis Distance: PCA instead of GPA 
+Here, I try to calculate the Mahalanobis distance using the results of the PCA output instead of the GPA as I did in the prior code chunk. I'm not sure if this is viable, since the pairwise mahalanobis is being run on the $x column of data for the PCA.
+```{r}
+## Pairwise mahalanobis distances between the four species
+## This uses the PCA output instead of the GPA output
+#### I don't think that's right though
+data31dec.pca <- prcomp(data31dec[,c(6:23)], center = TRUE, scale. = TRUE) #creates the PCA
+newgroups <- data31dec$species #make grouping variable for subsequent pairwise.mahalanobis
+Mahala2 <- pairwise.mahalanobis(data31dec.pca$x, newgroups, digits = 5) #NOTE: this is only using the $x output of the PCA, not the whole thing. Possibly incorrect, especially compared to the GPA output equivalent from earlier.
+D <- sqrt(Mahala2$distance) #assign the $distance output from the pairwise.mahalanobis to a variable
+rownames(D) <- list("farinosus", "ligatus", "rubicundus", "tripartitus") #give species names to matrix
+colnames(D) <- list("farinosus", "ligatus", "rubicundus", "tripartitus") #give species names to matrix
+D #print this new matrix of mahalanobis distances
+```
+
+### Building a UPGMA Tree
+Here, I build two different UPGMA dendrograms. First is the tree made with the Mahalanobis distances among the four species using the output of the Generalized Procrustes Analysis (GPA). Second is the tree made with the Mahalanobis distances among the four species using the output of the Principal Component Analysis (PCA). Note that these distances came from the $x field of the PCA data, and not the complete thing, which may be incorrect (see prior code chunk).
+
+As shown, the trees are very similar. Placement of the four species and two nodes is identical, but the distances of branches are not.
+```{r}
+#building tree with GPA output mahalanobis
+tre <- nj(m1) #neighbor joining method tree (m1 is the GPA version output)
+class(tre) #what class of tree (it will by phylogenetic)
+tre <- ladderize(tre) #making the steps
+tre #describes the tree
+plot(tre, cex = 1) #plot the tree. cex refers to text size
+title("Tree: Built with Mahalanobis Distances of GPA output")
+
+#building tree with PCA output mahalanobis
+tre <- nj(D) #neighbor joining method tree (D is the PCA version output)
+class(tre) #what class of tree (it will by phylogenetic)
+tre <- ladderize(tre) #making the steps
+tre #describes the tree
+plot(tre, cex = 1) #plot the tree. cex refers to text size
+title("Tree: Built with Mahalanobis Distances of PCA output")
+```
+
+
+
+
+
+
