@@ -34,7 +34,9 @@ data31dec <- all_CSVdata #assign the data to a new variable
 
 #manipulate the data
 ##drop some of the tripartitus specimens
-data31dec <- data31dec[c(1:83), c(1:24)] #drop all unidentified and some tripartitus
+data31dec <- data31dec[c(1:78), c(1:24)] #drop all unidentified and some tripartitus
+##drop male or unknown sex specimens
+data31dec <- subset(data31dec,  sex == "female")
 plot(data31dec$species, main="Number of specimens for each species") #visualize the numbers of each species
 ```
 
